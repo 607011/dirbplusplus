@@ -1,0 +1,3 @@
+[submodule "3rdparty/httplib"]
+	path = 3rdparty/httplib
+	url = https://github.com/607011/httplib.git

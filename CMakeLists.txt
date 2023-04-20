@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(dirb
-        VERSION 0.9
-        DESCRIPTION "Dir Buster Clone"
+        VERSION 0.1
+        DESCRIPTION "Fast Dir Buster Clone"
         LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -23,8 +23,7 @@ endif()
 
 add_definitions(-DCPPHTTPLIB_OPENSSL_SUPPORT)
 
-add_subdirectory(3rdparty/cpp-httplib)
-# add_subdirectory(3rdparty/gflags)
+add_subdirectory(3rdparty/httplib)
 
 set(OPENSSL_ROOT $ENV{OPENSSL_ROOT_DIR})
 find_package(OpenSSL)
@@ -38,14 +37,12 @@ add_executable(dirb
 )
 
 target_include_directories(dirb
-	PRIVATE ${PROJECT_INCLUDE_DIRS}
-  # ${GFLAGS_INCLUDE_DIR}
+  PRIVATE ${PROJECT_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
-  3rdparty/cpp-httplib
+  3rdparty/httplib
 )
 
 target_link_libraries(dirb
-  # gflags::gflags
   ${OPENSSL_LIBRARIES}
 )
 
