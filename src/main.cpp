@@ -26,40 +26,59 @@
 namespace chrono = std::chrono;
 namespace http = dirb::http;
 
-#define DIRB_USER_AGENT_STRING ("Dirb++/0.1")
+#ifndef PROJECT_VERSION
+#define PROJECT_VERSION "unknown"
+#endif
+
 #define CA_CERT_FILE ("./cacert.pem")
 
 constexpr unsigned int DefaultNumThreads = 40;
 constexpr const char *DefaultHttpVersion = "1.1";
-constexpr const char *DefaultUserAgent = DIRB_USER_AGENT_STRING;
+const std::string DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
 
 void about()
 {
     std::cout
-        << DIRB_USER_AGENT_STRING << " - Fast, multithreaded version of the original Dirb\n"
+        << PROJECT_NAME << "++ " << PROJECT_VERSION << " - Fast, multithreaded version of the original Dirb.\n\n"
         << "Copyright (c) 2023 Oliver Lau\n\n";
 }
 
 void license()
 {
     std::cout
-        << "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\n"
-           "The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\n"
-           "THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n";
+        << "Permission is hereby granted, free of charge, to any person obtaining\n"
+           "a copy of this software and associated documentation files (the \"Soft-\n"
+           "ware\"), to deal in the Software without restriction, including without\n"
+           "limitation the rights to use, copy, modify, merge, publish, distribute,\n"
+           "sublicense, and/or sell copies of the Software, and to permit persons\n"
+           "to whom the Software is furnished to do so, subject to the following\n"
+           "conditions:\n\n"
+           "The above copyright notice and this permission notice shall be included\n"
+           "in all copies or substantial portions of the Software.\n\n"
+           "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\n"
+           "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n"
+           "MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\n"
+           "IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY\n"
+           "CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,\n"
+           "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT-\n"
+           "WARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n";
 }
 
 void brief_usage()
 {
     std::cout
-        << "USAGE: dirb [options] base_url\n\n"
-           "See `dirb --help` for options\n";
+        << "USAGE: " << PROJECT_NAME << " [options] base_url\n"
+        << "\n"
+        << "See `" << PROJECT_NAME << " --help` for options\n";
 }
 
 void usage()
 {
     std::cout
         << "\n"
-           "USAGE: dirb [options] base_url\n"
+           "USAGE: "
+        << PROJECT_NAME
+        << "[options] base_url\n"
            "\n"
            "  base_url\n"
            "\n"
@@ -143,6 +162,7 @@ int main(int argc, char *argv[])
     std::string password{};
     std::string body{};
     std::string bearer_token{};
+    std::string user_agent = DefaultUserAgent;
     http::verb method{http::verb::get};
     unsigned int http_version = 11;
     bool verify_certs = false;
@@ -174,7 +194,7 @@ int main(int argc, char *argv[])
             {"help", no_argument, 0, '?'},
             {"license", no_argument, 0, 0},
             {0, 0, 0, 0}};
-        int c = getopt_long(argc, argv, "?b:fp:H:m:t:vV:w:X", long_options, &option_index);
+        int c = getopt_long(argc, argv, "?b:fp:H:m:t:vV:w:X:", long_options, &option_index);
         if (c == -1)
         {
             break;
@@ -188,7 +208,7 @@ int main(int argc, char *argv[])
             }
             else if (strcmp(long_options[option_index].name, "user-agent") == 0)
             {
-                headers.emplace("User-Agent", optarg);
+                user_agent = optarg;
             }
             else if (strcmp(long_options[option_index].name, "body") == 0)
             {
@@ -268,8 +288,11 @@ int main(int argc, char *argv[])
             num_threads = static_cast<unsigned int>(atoi(optarg));
             break;
         case 'X':
+        {
+            std::cout << optarg << std::endl;
             probe_extensions = util::split(optarg, ',');
             break;
+        }
         case 'V':
             probe_variations = util::split(optarg, ',');
             break;
@@ -300,6 +323,8 @@ int main(int argc, char *argv[])
         brief_usage();
         return EXIT_FAILURE;
     }
+
+    headers.emplace("User-Agent", user_agent);
 
     std::queue<std::string> url_queue;
     for (std::string const &word_list_filename : word_list_filenames)

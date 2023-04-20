@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(dirb
-        VERSION 0.1
+        VERSION 0.9
         DESCRIPTION "Fast Dir Buster Clone"
         LANGUAGES CXX)
 
@@ -21,7 +21,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -glldb")
 endif()
 
-add_definitions(-DCPPHTTPLIB_OPENSSL_SUPPORT)
+add_definitions(-DCPPHTTPLIB_OPENSSL_SUPPORT -DPROJECT_NAME="${CMAKE_PROJECT_NAME}" -DPROJECT_VERSION="${CMAKE_PROJECT_VERSION}")
 
 add_subdirectory(3rdparty/httplib)
 
