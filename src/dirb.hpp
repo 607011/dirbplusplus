@@ -70,7 +70,7 @@ namespace dirb
         }
         inline void set_body(std::string const &body)
         {
-            this->body = body;
+            this->body_ = body;
         }
         inline void set_bearer_token(std::string const &bearer_token)
         {
@@ -90,7 +90,7 @@ namespace dirb
         }
         inline void set_probe_variations(std::vector<std::string> const &probe_variations)
         {
-            this->probe_variations = probe_variations;
+            this->probe_variations_ = probe_variations;
         }
         inline void set_url_queue(std::queue<std::string> const &url_queue)
         {
@@ -115,10 +115,10 @@ namespace dirb
         bool follow_redirects_{false};
         httplib::Headers headers_{};
         std::string bearer_token_{};
-        std::vector<std::string> probe_variations{};
+        std::vector<std::string> probe_variations_{};
         std::string username_{};
         std::string password_{};
-        std::string body{};
+        std::string body_{};
         bool verify_certs_{false};
         http::verb method_{http::verb::get};
         std::queue<std::string> url_queue_;

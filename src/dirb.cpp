@@ -132,7 +132,7 @@ namespace dirb
                 else if (res->status == 200)
                 {
                     std::lock_guard<std::mutex> lock(queue_mutex_);
-                    for (auto const &v : probe_variations)
+                    for (auto const &v : probe_variations_)
                     {
                         url_queue_.push(url + v);
                     }
