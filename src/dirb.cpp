@@ -107,7 +107,6 @@ namespace dirb
             }
             if (url.empty())
             {
-                std::cout << "empty";
                 continue;
             }
             if (url.front() != '/')
