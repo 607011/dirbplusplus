@@ -25,14 +25,14 @@ add_definitions(-DCPPHTTPLIB_OPENSSL_SUPPORT -DPROJECT_NAME="${CMAKE_PROJECT_NAM
 
 add_subdirectory(3rdparty/cpp-httplib)
 
-file(DOWNLOAD https://curl.haxx.se/ca/cacert.pem cacert.pem SHOW_PROGRESS)
+file(DOWNLOAD https://curl.haxx.se/ca/cacert.pem cacert.pem)
 
 add_custom_command(
-  OUTPUT certs.hpp
-  COMMAND xxd -i cacert.pem > certs.hpp
+  OUTPUT certs.cpp
+  COMMAND xxd -i cacert.pem > certs.cpp
   DEPENDS cacert.pem
   VERBATIM)
-add_custom_target(certs DEPENDS certs.hpp)
+add_custom_target(certs DEPENDS certs.cpp)
 
 set(OPENSSL_ROOT $ENV{OPENSSL_ROOT_DIR})
 find_package(OpenSSL)
@@ -43,12 +43,14 @@ message(STATUS "OpenSSL libs: ${OPENSSL_LIBRARIES}")
 add_executable(dirb
   src/main.cpp
   src/dirb.cpp
+  certs.cpp
 )
 
 target_include_directories(dirb
   PRIVATE ${PROJECT_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
   3rdparty/cpp-httplib
+  build
 )
 
 target_link_libraries(dirb

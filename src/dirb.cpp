@@ -1,16 +1,68 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
  * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
-*/
+ */
 
 #include "dirb.hpp"
+#include "certs.hpp"
 
 namespace dirb
 {
-    void http_worker(std::queue<std::string> &url_queue, std::mutex &queue_mtx, std::atomic_bool &do_quit, dirb_options dirb_opts)
+    namespace
+    {
+        X509_STORE *read_certificates(SSL_CTX *ssl_ctx, std::ostream &err)
+        {
+            BIO *cbio = BIO_new_mem_buf(reinterpret_cast<void *>(cacert_pem), static_cast<int>(cacert_pem_len));
+            if (cbio == nullptr)
+            {
+                err << "\u001b[31;1mERROR:\u001b[0m CA certificates cannot be read (file: " << __FILE__ << ", line:" << __LINE__ << ")" << std::endl;
+                return nullptr;
+            }
+            X509_STORE *cts = SSL_CTX_get_cert_store(ssl_ctx);
+            if (cts == nullptr)
+            {
+                err << "\u001b[31;1mERROR:\u001b[0m X.509 store cannot be created (file: " << __FILE__ << ", line:" << __LINE__ << ")" << std::endl;
+                return nullptr;
+            }
+            ;
+            STACK_OF(X509_INFO) *inf = PEM_X509_INFO_read_bio(cbio, nullptr, nullptr, nullptr);
+            if (inf == nullptr)
+            {
+                err << "\u001b[31;1mERROR:\u001b[0m X.509 info cannot be created (file: " << __FILE__ << ", line:" << __LINE__ << ")" << std::endl;
+                BIO_free(cbio);
+                return nullptr;
+            }
+            for (int i = 0; i < sk_X509_INFO_num(inf); i++)
+            {
+                X509_INFO *itmp = sk_X509_INFO_value(inf, i);
+                if (itmp->x509)
+                {
+                    X509_STORE_add_cert(cts, itmp->x509);
+                }
+                if (itmp->crl)
+                {
+                    X509_STORE_add_crl(cts, itmp->crl);
+                }
+            }
+            sk_X509_INFO_pop_free(inf, X509_INFO_free);
+            BIO_free(cbio);
+            return cts;
+        }
+    }
+
+    void http_worker(options dirb_opts)
     {
         httplib::Client cli(dirb_opts.base_url.c_str());
-        // cli.set_ca_cert_path(CA_CERT_FILE);
+        X509_STORE *cts = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(dirb_opts.output_mutex);
+            cts = read_certificates(cli.ssl_context(), std::cerr);
+        }
+        if (cts == nullptr)
+        {
+            return;
+        }
+        cli.set_ca_cert_store(cts);
         cli.enable_server_certificate_verification(dirb_opts.verify_certs);
         if (!dirb_opts.bearer_token.empty())
         {
@@ -23,19 +75,19 @@ namespace dirb
         cli.set_follow_location(dirb_opts.follow_redirects);
         cli.set_compress(true);
         cli.set_default_headers(dirb_opts.headers);
-        while (!do_quit)
+        while (!dirb_opts.do_quit)
         {
             std::string url;
             {
-                std::lock_guard<std::mutex> lock(queue_mtx);
-                if (url_queue.empty())
+                std::lock_guard<std::mutex> lock(dirb_opts.queue_mtx);
+                if (dirb_opts.url_queue.empty())
                 {
                     return;
                 }
                 else
                 {
-                    url = url_queue.front();
-                    url_queue.pop();
+                    url = dirb_opts.url_queue.front();
+                    dirb_opts.url_queue.pop();
                 }
             }
             if (url.empty())
@@ -63,10 +115,17 @@ namespace dirb
                 }
                 else if (res->status == 200)
                 {
-                    std::lock_guard<std::mutex> lock(queue_mtx);
+                    std::lock_guard<std::mutex> lock(dirb_opts.queue_mtx);
                     for (auto const &v : dirb_opts.probe_variations)
                     {
-                        url_queue.push(url + v);
+                        dirb_opts.url_queue.push(url + v);
+                    }
+                    if (dirb_opts.verify_certs)
+                    {
+                        if (auto result = cli.get_openssl_verify_result())
+                        {
+                            std::cout << "verify error: " << X509_verify_cert_error_string(result) << std::endl;
+                        }
                     }
                 }
                 dirb_opts.log(ss.str());
@@ -76,9 +135,10 @@ namespace dirb
                 std::stringstream ss;
                 ss << (-1) << ';' << '"' << url << '"' << ';' << ';' << ';' << ';' << res.error();
                 dirb_opts.error(ss.str());
-                std::lock_guard<std::mutex> lock(queue_mtx);
-                url_queue.push(url);
+                std::lock_guard<std::mutex> lock(dirb_opts.queue_mtx);
+                dirb_opts.url_queue.push(url);
             }
         }
+        return;
     }
 }

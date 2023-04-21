@@ -1,7 +1,7 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
  * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
-*/
+ */
 
 #ifndef __DIRB_HPP__
 #define __DIRB_HPP__
@@ -16,7 +16,6 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #endif
 #include <httplib.h>
-
 
 namespace dirb
 {
@@ -35,7 +34,7 @@ namespace dirb
         };
     }
 
-    struct dirb_options
+    struct options
     {
         std::string base_url{};
         std::mutex &output_mutex;
@@ -49,6 +48,9 @@ namespace dirb
         bool verify_certs{false};
         http::verb method{http::verb::get};
         unsigned int version{11};
+        std::queue<std::string> &url_queue;
+        std::mutex &queue_mtx;
+        std::atomic_bool &do_quit;
 
         void log(std::string const &message) const
         {
@@ -63,6 +65,6 @@ namespace dirb
         }
     };
 
-    void http_worker(std::queue<std::string> &url_queue, std::mutex &queue_mtx, std::atomic_bool &do_quit, dirb_options dirb_opts);
+    void http_worker(options dirb_opts);
 }
 #endif // __DIRB_HPP__

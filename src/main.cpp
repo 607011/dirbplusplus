@@ -3,6 +3,7 @@
  * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
  */
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -16,23 +17,25 @@
 #include <queue>
 #include <vector>
 
-#include <openssl/ssl.h>
-#include <openssl/x509v3.h>
+#include <openssl/pem.h>
 
 #include "timer.hpp"
 #include "util.hpp"
 #include "dirb.hpp"
 
+#include "certs.hpp"
+
 namespace chrono = std::chrono;
 namespace http = dirb::http;
 
+#ifndef PROJECT_NAME
+#define PROJECT_NAME "dirb++"
+#endif
 #ifndef PROJECT_VERSION
 #define PROJECT_VERSION "unknown"
 #endif
 
-#define CA_CERT_FILE ("./cacert.pem")
-
-constexpr unsigned int DefaultNumThreads = 40;
+constexpr size_t DefaultNumThreads = 40U;
 constexpr const char *DefaultHttpVersion = "1.1";
 const std::string DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
 
@@ -154,7 +157,7 @@ void usage()
 
 int main(int argc, char *argv[])
 {
-    unsigned int num_threads = DefaultNumThreads;
+    size_t num_threads = DefaultNumThreads;
     std::vector<std::string> word_list_filenames{};
     httplib::Headers headers{};
     std::string base_url{};
@@ -213,6 +216,10 @@ int main(int argc, char *argv[])
             else if (strcmp(long_options[option_index].name, "body") == 0)
             {
                 body = optarg;
+            }
+            else if (strcmp(long_options[option_index].name, "verify-certs") == 0)
+            {
+                verify_certs = true;
             }
             else if (strcmp(long_options[option_index].name, "http-version") == 0)
             {
@@ -323,9 +330,12 @@ int main(int argc, char *argv[])
         brief_usage();
         return EXIT_FAILURE;
     }
-
     headers.emplace("User-Agent", user_agent);
 
+    if (verbosity > 1)
+    {
+        std::cout << "Reading word list" << (word_list_filenames.size() == 1 ? "" : "s") << " ... " << std::flush;
+    }
     std::queue<std::string> url_queue;
     for (std::string const &word_list_filename : word_list_filenames)
     {
@@ -340,14 +350,18 @@ int main(int argc, char *argv[])
             }
         }
     }
-    std::cout << "Read " << url_queue.size() << " URLs." << std::endl;
-    std::cout << "Starting " << num_threads << " worker threads ..." << std::endl;
+    num_threads = std::min(num_threads, url_queue.size());
+    if (verbosity > 0)
+    {
+        std::cout << "Read " << url_queue.size() << " URLs." << std::endl;
+        std::cout << "Starting " << num_threads << " worker threads ..." << std::endl;
+    }
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
     std::mutex queue_mutex;
     std::mutex output_mutex;
     std::atomic_bool do_quit{false};
-    dirb::dirb_options dirb_opts{
+    dirb::options dirb_opts{
         base_url,
         output_mutex,
         follow_redirects,
@@ -359,21 +373,24 @@ int main(int argc, char *argv[])
         body,
         verify_certs,
         method,
-        http_version};
+        http_version,
+        url_queue,
+        queue_mutex,
+        do_quit};
     timer t;
     for (size_t i = 0; i < num_threads; ++i)
     {
-        workers.emplace_back(
-            dirb::http_worker,
-            std::ref(url_queue),
-            std::ref(queue_mutex),
-            std::ref(do_quit),
-            dirb_opts);
+        workers.emplace_back(dirb::http_worker, dirb_opts);
     }
     for (auto &worker : workers)
     {
         worker.join();
     }
-    std::cout << "Elapsed time: " << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms\n";
+    if (verbosity > 0)
+    {
+        std::cout << "Elapsed time: "
+                  << chrono::duration_cast<chrono::milliseconds>(t.elapsed()).count() << " ms"
+                  << std::endl;
+    }
     return EXIT_SUCCESS;
 }
