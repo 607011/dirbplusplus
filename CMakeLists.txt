@@ -42,20 +42,15 @@ message(STATUS "OpenSSL version: ${OPENSSL_VERSION}")
 message(STATUS "OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
 message(STATUS "OpenSSL libs: ${OPENSSL_LIBRARIES}")
 
+set(DIRB_SOURCES
+  src/main.cpp
+  src/dirb.cpp
+  certs.cpp
+)
+
 if (WIN32)
-  set(DIRB_SOURCES 
-    src/main.cpp
-    src/dirb.cpp
-    certs.cpp
-    3rdparty/getopt-for-windows/getopt.c
-  )
+  set(DIRB_SOURCES ${DIRB_SOURCES} 3rdparty/getopt-for-windows/getopt.c)
   set(PROJECT_INCLUDE_DIRS ${PROJECT_INCLUDE_DIRS} 3rdparty/getopt-for-windows)
-else()
-  set(DIRB_SOURCES 
-    src/main.cpp
-    src/dirb.cpp
-    certs.cpp
-  )
 endif()
 
 add_executable(dirb ${DIRB_SOURCES})
