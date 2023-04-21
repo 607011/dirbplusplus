@@ -1,14 +1,15 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
  * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
-*/
+ */
 
 #ifndef __UTIL_CPP__
 #define __UTIL_CPP__
 
+#include <sstream>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace util
 {
@@ -42,6 +43,21 @@ namespace util
         return pair;
     }
 
+    template <typename InputIteratorT, typename SeparatorT>
+    std::string join(InputIteratorT input, SeparatorT separator)
+    {
+        std::ostringstream result;
+        auto i = std::begin(input);
+        if (i != std::end(input))
+        {
+            result << *i++;
+        }
+        while (i != std::end(input))
+        {
+            result << separator << *i++;
+        }
+        return result.str();
+    }
 }
 
 #endif // __UTIL_CPP__

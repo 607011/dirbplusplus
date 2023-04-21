@@ -10,6 +10,7 @@
 #include <getopt.h>
 #include <iostream>
 #include <mutex>
+#include <numeric>
 #include <thread>
 #include <string>
 #include <vector>
@@ -110,6 +111,12 @@ namespace
                "  --cookie COOKIE\n"
                "    Send Cookie header with each request\n"
                "\n"
+               "  -i CODELIST [--include ...] \n"
+               "    Only include HTTP status codes in CODELIST.\n"
+               "    CODELIST is a comma-separated list of status codes, e.g.\n"
+               "    "
+            << util::join(dirb::dirb_runner::DefaultStatusCodeFilter, ',')
+            << "\n\n"
                "  -m VERB [--method ...] **NOT IMPLEMENTED YET**\n"
                "    HTTP request method to use; default is GET.\n"
                "    VERB is one of GET, OPTIONS, HEAD, PUT, PATCH, POST, DELETE\n"

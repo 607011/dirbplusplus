@@ -3,6 +3,7 @@
  * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
  */
 
+#include <algorithm>
 #include <sstream>
 
 #include "dirb.hpp"
@@ -52,6 +53,7 @@ namespace dirb
     }
 
     const std::string dirb_runner::DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
+    const std::vector<int> dirb_runner::DefaultStatusCodeFilter = {200, 204, 301, 302, 307, 308, 401, 403};
 
     void dirb_runner::log(std::string const &message)
     {
@@ -68,16 +70,19 @@ namespace dirb
     void dirb_runner::http_worker()
     {
         httplib::Client cli(base_url_.c_str());
-        X509_STORE *cts = nullptr;
+        if (verify_certs_)
         {
-            std::lock_guard<std::mutex> lock(output_mutex_);
-            cts = util::read_certificates(cli.ssl_context(), std::cerr);
+            X509_STORE *cts = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(output_mutex_);
+                cts = util::read_certificates(cli.ssl_context(), std::cerr);
+            }
+            if (cts == nullptr)
+            {
+                return;
+            }
+            cli.set_ca_cert_store(cts);
         }
-        if (cts == nullptr)
-        {
-            return;
-        }
-        cli.set_ca_cert_store(cts);
         cli.enable_server_certificate_verification(verify_certs_);
         if (!bearer_token_.empty())
         {
@@ -113,6 +118,7 @@ namespace dirb
             {
                 url = '/' + url;
             }
+            // TODO: implement all methods, i.e. HEAD, POST, OPTIONS ...
             if (httplib::Result res = cli.Get(url.c_str()))
             {
                 std::stringstream ss;
@@ -143,7 +149,10 @@ namespace dirb
                         }
                     }
                 }
-                log(ss.str());
+                if (std::find(status_codes_.begin(), status_codes_.end(), res->status) != status_codes_.end())
+                {
+                    log(ss.str());
+                }
             }
             else
             {

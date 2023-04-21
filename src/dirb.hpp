@@ -104,10 +104,15 @@ namespace dirb
         {
             return url_queue_.size();
         }
+        inline void set_status_code_filter(std::vector<int> const &codes)
+        {
+            this->status_codes_ = codes;
+        }
 
         void http_worker();
 
         static const std::string DefaultUserAgent;
+        static const std::vector<int> DefaultStatusCodeFilter;
 
     private:
         std::string base_url_{};
@@ -124,6 +129,7 @@ namespace dirb
         std::queue<std::string> url_queue_;
         std::mutex queue_mutex_;
         std::atomic_bool do_quit_{false};
+        std::vector<int> status_codes_{DefaultStatusCodeFilter};
 
         void log(std::string const &message);
         void error(std::string const &message);
