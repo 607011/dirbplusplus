@@ -23,8 +23,7 @@ namespace dirb
             {
                 err << "\u001b[31;1mERROR:\u001b[0m X.509 store cannot be created (file: " << __FILE__ << ", line:" << __LINE__ << ")" << std::endl;
                 return nullptr;
-            }
-            ;
+            };
             STACK_OF(X509_INFO) *inf = PEM_X509_INFO_read_bio(cbio, nullptr, nullptr, nullptr);
             if (inf == nullptr)
             {
@@ -50,12 +49,24 @@ namespace dirb
         }
     }
 
-    void http_worker(options dirb_opts)
+    void dirb_runner::log(std::string const &message) const
     {
-        httplib::Client cli(dirb_opts.base_url.c_str());
+        std::lock_guard<std::mutex> lock(output_mutex);
+        std::cout << message << std::endl;
+    }
+
+    void dirb_runner::error(std::string const &message) const
+    {
+        std::lock_guard<std::mutex> lock(output_mutex);
+        std::cerr << message << std::endl;
+    }
+
+    void dirb_runner::http_worker()
+    {
+        httplib::Client cli(base_url.c_str());
         X509_STORE *cts = nullptr;
         {
-            std::lock_guard<std::mutex> lock(dirb_opts.output_mutex);
+            std::lock_guard<std::mutex> lock(output_mutex);
             cts = read_certificates(cli.ssl_context(), std::cerr);
         }
         if (cts == nullptr)
@@ -63,31 +74,31 @@ namespace dirb
             return;
         }
         cli.set_ca_cert_store(cts);
-        cli.enable_server_certificate_verification(dirb_opts.verify_certs);
-        if (!dirb_opts.bearer_token.empty())
+        cli.enable_server_certificate_verification(verify_certs);
+        if (!bearer_token.empty())
         {
-            cli.set_bearer_token_auth(dirb_opts.bearer_token.c_str());
+            cli.set_bearer_token_auth(bearer_token.c_str());
         }
-        if (!dirb_opts.username.empty() && !dirb_opts.password.empty())
+        if (!username.empty() && !password.empty())
         {
-            cli.set_basic_auth(dirb_opts.username.c_str(), dirb_opts.password.c_str());
+            cli.set_basic_auth(username.c_str(), password.c_str());
         }
-        cli.set_follow_location(dirb_opts.follow_redirects);
+        cli.set_follow_location(follow_redirects);
         cli.set_compress(true);
-        cli.set_default_headers(dirb_opts.headers);
-        while (!dirb_opts.do_quit)
+        cli.set_default_headers(headers);
+        while (!do_quit)
         {
             std::string url;
             {
-                std::lock_guard<std::mutex> lock(dirb_opts.queue_mtx);
-                if (dirb_opts.url_queue.empty())
+                std::lock_guard<std::mutex> lock(queue_mtx);
+                if (url_queue.empty())
                 {
                     return;
                 }
                 else
                 {
-                    url = dirb_opts.url_queue.front();
-                    dirb_opts.url_queue.pop();
+                    url = url_queue.front();
+                    url_queue.pop();
                 }
             }
             if (url.empty())
@@ -115,12 +126,12 @@ namespace dirb
                 }
                 else if (res->status == 200)
                 {
-                    std::lock_guard<std::mutex> lock(dirb_opts.queue_mtx);
-                    for (auto const &v : dirb_opts.probe_variations)
+                    std::lock_guard<std::mutex> lock(queue_mtx);
+                    for (auto const &v : probe_variations)
                     {
-                        dirb_opts.url_queue.push(url + v);
+                        url_queue.push(url + v);
                     }
-                    if (dirb_opts.verify_certs)
+                    if (verify_certs)
                     {
                         if (auto result = cli.get_openssl_verify_result())
                         {
@@ -128,15 +139,15 @@ namespace dirb
                         }
                     }
                 }
-                dirb_opts.log(ss.str());
+                log(ss.str());
             }
             else
             {
                 std::stringstream ss;
                 ss << (-1) << ';' << '"' << url << '"' << ';' << ';' << ';' << ';' << res.error();
-                dirb_opts.error(ss.str());
-                std::lock_guard<std::mutex> lock(dirb_opts.queue_mtx);
-                dirb_opts.url_queue.push(url);
+                error(ss.str());
+                std::lock_guard<std::mutex> lock(queue_mtx);
+                url_queue.push(url);
             }
         }
         return;

@@ -34,13 +34,17 @@ namespace dirb
         };
     }
 
-    struct options
+    class dirb_runner
     {
-        options() = delete;
-        options(std::string const &base_url, std::mutex &output_mutex, bool follow_redirects, httplib::Headers const &headers, std::string const &bearer_token, std::vector<std::string> const &probe_variations, std::string const &username, std::string const &password, std::string const &body, bool verify_certs, http::verb method, unsigned int version, std::queue<std::string> &url_queue, std::mutex &queue_mtx, std::atomic_bool &do_quit)
+    public:
+        dirb_runner() = delete;
+        dirb_runner(std::string const &base_url, std::mutex &output_mutex, bool follow_redirects, httplib::Headers const &headers, std::string const &bearer_token, std::vector<std::string> const &probe_variations, std::string const &username, std::string const &password, std::string const &body, bool verify_certs, http::verb method, unsigned int version, std::queue<std::string> &url_queue, std::mutex &queue_mtx, std::atomic_bool &do_quit)
             : base_url(base_url), output_mutex(output_mutex), follow_redirects(follow_redirects), headers(headers), bearer_token(bearer_token), probe_variations(probe_variations), username(username), password(password), body(body), verify_certs(verify_certs), method(method), version(version), url_queue(url_queue), queue_mtx(queue_mtx), do_quit(do_quit)
         {
         }
+        void http_worker();
+
+    private:
         std::string base_url{};
         std::mutex &output_mutex;
         bool follow_redirects{false};
@@ -57,19 +61,10 @@ namespace dirb
         std::mutex &queue_mtx;
         std::atomic_bool &do_quit;
 
-        void log(std::string const &message) const
-        {
-            std::lock_guard<std::mutex> lock(output_mutex);
-            std::cout << message << std::endl;
-        }
-
-        void error(std::string const &message) const
-        {
-            std::lock_guard<std::mutex> lock(output_mutex);
-            std::cerr << message << std::endl;
-        }
+        void log(std::string const &message) const;
+        void error(std::string const &message) const;
     };
 
-    void http_worker(options dirb_opts);
+    
 }
 #endif // __DIRB_HPP__

@@ -39,124 +39,127 @@ namespace http = dirb::http;
 #define PROJECT_VERSION "unknown"
 #endif
 
-constexpr size_t DefaultNumThreads = 40U;
-constexpr const char *DefaultHttpVersion = "1.1";
-const std::string DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
-
-void about()
+namespace
 {
-    std::cout
-        << PROJECT_NAME << "++ " << PROJECT_VERSION << " - Fast, multithreaded version of the original Dirb.\n\n"
-        << "Copyright (c) 2023 Oliver Lau\n\n";
-}
+    constexpr size_t DefaultNumThreads = 40U;
+    constexpr const char *DefaultHttpVersion = "1.1";
+    const std::string DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
 
-void license()
-{
-    std::cout
-        << "Permission is hereby granted, free of charge, to any person obtaining\n"
-           "a copy of this software and associated documentation files (the \"Soft-\n"
-           "ware\"), to deal in the Software without restriction, including without\n"
-           "limitation the rights to use, copy, modify, merge, publish, distribute,\n"
-           "sublicense, and/or sell copies of the Software, and to permit persons\n"
-           "to whom the Software is furnished to do so, subject to the following\n"
-           "conditions:\n\n"
-           "The above copyright notice and this permission notice shall be included\n"
-           "in all copies or substantial portions of the Software.\n\n"
-           "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\n"
-           "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n"
-           "MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\n"
-           "IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY\n"
-           "CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,\n"
-           "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT-\n"
-           "WARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n";
-}
+    void about()
+    {
+        std::cout
+            << PROJECT_NAME << "++ " << PROJECT_VERSION << " - Fast, multithreaded version of the original Dirb.\n\n"
+            << "Copyright (c) 2023 Oliver Lau\n\n";
+    }
 
-void brief_usage()
-{
-    std::cout
-        << "USAGE: " << PROJECT_NAME << " [options] base_url\n"
-        << "\n"
-        << "See `" << PROJECT_NAME << " --help` for options\n";
-}
+    void license()
+    {
+        std::cout
+            << "Permission is hereby granted, free of charge, to any person obtaining\n"
+               "a copy of this software and associated documentation files (the \"Soft-\n"
+               "ware\"), to deal in the Software without restriction, including without\n"
+               "limitation the rights to use, copy, modify, merge, publish, distribute,\n"
+               "sublicense, and/or sell copies of the Software, and to permit persons\n"
+               "to whom the Software is furnished to do so, subject to the following\n"
+               "conditions:\n\n"
+               "The above copyright notice and this permission notice shall be included\n"
+               "in all copies or substantial portions of the Software.\n\n"
+               "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\n"
+               "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n"
+               "MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\n"
+               "IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY\n"
+               "CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,\n"
+               "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT-\n"
+               "WARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n";
+    }
 
-void usage()
-{
-    std::cout
-        << "\n"
-           "USAGE: "
-        << PROJECT_NAME
-        << "[options] base_url\n"
-           "\n"
-           "  base_url\n"
-           "\n"
-           "       The base URL used for all URL queries,\n"
-           "       e.g. `http://example.com` or `https://example.com`\n"
-           "       (no trailing slash!)\n"
-           "\n"
-           "OPTIONS:\n"
-           "\n"
-           "  -w FILENAME [--word-list ...]\n"
-           "    Add word list file\n"
-           "\n"
-           "  -v [--verbose]\n"
-           "    Increase verbosity of output (only applies to standard output mode)\n"
-           "\n"
-           "  -t N [--threads N]\n"
-           "    Run in N threads (default: "
-        << DefaultNumThreads << "\n"
-        << "\n"
-           "  -p USERNAME:PASSWORD [--credentials ...]\n"
-           "    Enable basic authentication with USERNAME and PASSWORD\n"
-           "\n"
-           "  -b TOKEN [--bearer-token ...]\n"
-           "    Use a bearer token to authenticate, e.g. a JWT\n"
-           "\n"
-           "  --cookie COOKIE\n"
-           "    Send Cookie header with each request\n"
-           "\n"
-           "  -m VERB [--method ...]\n"
-           "    HTTP request method to use; default is GET.\n"
-           "    VERB is one of GET, OPTIONS, HEAD, PUT, PATCH, POST, DELETE\n"
-           "    (case-insensitive)\n"
-           "\n"
-           "  --body BODY\n"
-           "    Append BODY to each request; only applies to POST requests.\n"
-           "\n"
-           "  --content-type TYPE\n"
-           "    Send TYPE in Content-Tpe header with each request\n"
-           "\n"
-           "  --http-version VERSION\n"
-           "    Use HTTP version VERSION;\n"
-           "    VERSION must be one of `1.0`, `1.1`, oder `2.0`.\n"
-           "    default: "
-        << DefaultHttpVersion << "\n"
-        << "\n"
-           "\n"
-           "  --user-agent USERAGENT\n"
-           "    Send USERAGENT in User-Agent header,\n"
-           "    default: "
-        << DefaultUserAgent << "\n"
-        << "\n"
-           "  -X EXT1,EXT2,...EXTn [--probe-extensions ...]\n"
-           "    Do not only check the path itself, but also try every\n"
-           "    path by adding these extensions, delimited by comma. E.g.:\n"
-           "      -X .jsp,.php,.phpx,.xhtml\n"
-           "\n"
-           "  -V EXT1,EXT2,...EXTn [--probe-variations ...]\n"
-           "    If a path is found, check these variations by appending them\n"
-           "    to the path, delimited by comma. E.g.:\n"
-           "      -V _,_admin\n"
-           "\n"
-           "  -f [--follow-redirects]\n"
-           "    Follow 301 and 302 redirects to their final destination\n"
-           "\n"
-           "  --verify-certs\n"
-           "    Enable verification of CA certificates\n"
-           "    (only applies to HTTPS requests)\n"
-           "\n"
-           "  --license\n"
-           "    Display license\n"
-           "\n";
+    void brief_usage()
+    {
+        std::cout
+            << "USAGE: " << PROJECT_NAME << " [options] base_url\n"
+            << "\n"
+            << "See `" << PROJECT_NAME << " --help` for options\n";
+    }
+
+    void usage()
+    {
+        std::cout
+            << "\n"
+               "USAGE: "
+            << PROJECT_NAME
+            << "[options] base_url\n"
+               "\n"
+               "  base_url\n"
+               "\n"
+               "       The base URL used for all URL queries,\n"
+               "       e.g. `http://example.com` or `https://example.com`\n"
+               "       (no trailing slash!)\n"
+               "\n"
+               "OPTIONS:\n"
+               "\n"
+               "  -w FILENAME [--word-list ...]\n"
+               "    Add word list file\n"
+               "\n"
+               "  -v [--verbose]\n"
+               "    Increase verbosity of output (only applies to standard output mode)\n"
+               "\n"
+               "  -t N [--threads N]\n"
+               "    Run in N threads (default: "
+            << DefaultNumThreads << "\n"
+            << "\n"
+               "  -p USERNAME:PASSWORD [--credentials ...]\n"
+               "    Enable basic authentication with USERNAME and PASSWORD\n"
+               "\n"
+               "  -b TOKEN [--bearer-token ...]\n"
+               "    Use a bearer token to authenticate, e.g. a JWT\n"
+               "\n"
+               "  --cookie COOKIE\n"
+               "    Send Cookie header with each request\n"
+               "\n"
+               "  -m VERB [--method ...]\n"
+               "    HTTP request method to use; default is GET.\n"
+               "    VERB is one of GET, OPTIONS, HEAD, PUT, PATCH, POST, DELETE\n"
+               "    (case-insensitive)\n"
+               "\n"
+               "  --body BODY\n"
+               "    Append BODY to each request; only applies to POST requests.\n"
+               "\n"
+               "  --content-type TYPE\n"
+               "    Send TYPE in Content-Tpe header with each request\n"
+               "\n"
+               "  --http-version VERSION\n"
+               "    Use HTTP version VERSION;\n"
+               "    VERSION must be one of `1.0`, `1.1`, oder `2.0`.\n"
+               "    default: "
+            << DefaultHttpVersion << "\n"
+            << "\n"
+               "\n"
+               "  --user-agent USERAGENT\n"
+               "    Send USERAGENT in User-Agent header,\n"
+               "    default: "
+            << DefaultUserAgent << "\n"
+            << "\n"
+               "  -X EXT1,EXT2,...EXTn [--probe-extensions ...]\n"
+               "    Do not only check the path itself, but also try every\n"
+               "    path by adding these extensions, delimited by comma. E.g.:\n"
+               "      -X .jsp,.php,.phpx,.xhtml\n"
+               "\n"
+               "  -V EXT1,EXT2,...EXTn [--probe-variations ...]\n"
+               "    If a path is found, check these variations by appending them\n"
+               "    to the path, delimited by comma. E.g.:\n"
+               "      -V _,_admin\n"
+               "\n"
+               "  -f [--follow-redirects]\n"
+               "    Follow 301 and 302 redirects to their final destination\n"
+               "\n"
+               "  --verify-certs\n"
+               "    Enable verification of CA certificates\n"
+               "    (only applies to HTTPS requests)\n"
+               "\n"
+               "  --license\n"
+               "    Display license\n"
+               "\n";
+    }
 }
 
 int main(int argc, char *argv[])
@@ -365,7 +368,7 @@ int main(int argc, char *argv[])
     std::mutex queue_mutex;
     std::mutex output_mutex;
     std::atomic_bool do_quit{false};
-    dirb::options dirb_opts{
+    dirb::dirb_runner dirb_opts{
         base_url,
         output_mutex,
         follow_redirects,
@@ -384,7 +387,7 @@ int main(int argc, char *argv[])
     timer t;
     for (size_t i = 0; i < num_threads; ++i)
     {
-        workers.emplace_back(dirb::http_worker, dirb_opts);
+        workers.emplace_back(&dirb::dirb_runner::http_worker, &dirb_opts);
     }
     for (auto &worker : workers)
     {
