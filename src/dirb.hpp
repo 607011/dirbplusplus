@@ -36,6 +36,11 @@ namespace dirb
 
     struct options
     {
+        options() = delete;
+        options(std::string const &base_url, std::mutex &output_mutex, bool follow_redirects, httplib::Headers const &headers, std::string const &bearer_token, std::vector<std::string> const &probe_variations, std::string const &username, std::string const &password, std::string const &body, bool verify_certs, http::verb method, unsigned int version, std::queue<std::string> &url_queue, std::mutex &queue_mtx, std::atomic_bool &do_quit)
+            : base_url(base_url), output_mutex(output_mutex), follow_redirects(follow_redirects), headers(headers), bearer_token(bearer_token), probe_variations(probe_variations), username(username), password(password), body(body), verify_certs(verify_certs), method(method), version(version), url_queue(url_queue), queue_mtx(queue_mtx), do_quit(do_quit)
+        {
+        }
         std::string base_url{};
         std::mutex &output_mutex;
         bool follow_redirects{false};

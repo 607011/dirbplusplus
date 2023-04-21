@@ -12,7 +12,6 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
-#include <unistd.h>
 #include <string>
 #include <queue>
 #include <vector>
@@ -24,6 +23,11 @@
 #include "dirb.hpp"
 
 #include "certs.hpp"
+
+#ifdef WIN32
+#include <Windows.h>
+#define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
+#endif
 
 namespace chrono = std::chrono;
 namespace http = dirb::http;
