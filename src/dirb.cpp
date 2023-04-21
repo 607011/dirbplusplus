@@ -3,12 +3,14 @@
  * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
  */
 
+#include <sstream>
+
 #include "dirb.hpp"
 #include "certs.hpp"
 
 namespace dirb
 {
-    namespace
+    namespace util
     {
         X509_STORE *read_certificates(SSL_CTX *ssl_ctx, std::ostream &err)
         {
@@ -49,15 +51,17 @@ namespace dirb
         }
     }
 
-    void dirb_runner::log(std::string const &message) const
+    const std::string dirb_runner::DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
+
+    void dirb_runner::log(std::string const &message)
     {
-        std::lock_guard<std::mutex> lock(output_mutex);
+        const std::lock_guard<std::mutex> lock(output_mutex);
         std::cout << message << std::endl;
     }
 
-    void dirb_runner::error(std::string const &message) const
+    void dirb_runner::error(std::string const &message)
     {
-        std::lock_guard<std::mutex> lock(output_mutex);
+        const std::lock_guard<std::mutex> lock(output_mutex);
         std::cerr << message << std::endl;
     }
 
@@ -67,7 +71,7 @@ namespace dirb
         X509_STORE *cts = nullptr;
         {
             std::lock_guard<std::mutex> lock(output_mutex);
-            cts = read_certificates(cli.ssl_context(), std::cerr);
+            cts = util::read_certificates(cli.ssl_context(), std::cerr);
         }
         if (cts == nullptr)
         {
@@ -90,7 +94,7 @@ namespace dirb
         {
             std::string url;
             {
-                std::lock_guard<std::mutex> lock(queue_mtx);
+                std::lock_guard<std::mutex> lock(queue_mutex);
                 if (url_queue.empty())
                 {
                     return;
@@ -103,6 +107,7 @@ namespace dirb
             }
             if (url.empty())
             {
+                std::cout << "empty";
                 continue;
             }
             if (url.front() != '/')
@@ -126,7 +131,7 @@ namespace dirb
                 }
                 else if (res->status == 200)
                 {
-                    std::lock_guard<std::mutex> lock(queue_mtx);
+                    std::lock_guard<std::mutex> lock(queue_mutex);
                     for (auto const &v : probe_variations)
                     {
                         url_queue.push(url + v);
@@ -146,8 +151,10 @@ namespace dirb
                 std::stringstream ss;
                 ss << (-1) << ';' << '"' << url << '"' << ';' << ';' << ';' << ';' << res.error();
                 error(ss.str());
-                std::lock_guard<std::mutex> lock(queue_mtx);
-                url_queue.push(url);
+                {
+                    std::lock_guard<std::mutex> lock(queue_mutex);
+                    url_queue.push(url);
+                }
             }
         }
         return;

@@ -6,8 +6,8 @@
 #ifndef __DIRB_HPP__
 #define __DIRB_HPP__
 
+#include <atomic>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <queue>
 #include <vector>
@@ -34,19 +34,84 @@ namespace dirb
         };
     }
 
-    class dirb_runner
+    class dirb_runner final
     {
     public:
-        dirb_runner() = delete;
-        dirb_runner(std::string const &base_url, std::mutex &output_mutex, bool follow_redirects, httplib::Headers const &headers, std::string const &bearer_token, std::vector<std::string> const &probe_variations, std::string const &username, std::string const &password, std::string const &body, bool verify_certs, http::verb method, unsigned int version, std::queue<std::string> &url_queue, std::mutex &queue_mtx, std::atomic_bool &do_quit)
-            : base_url(base_url), output_mutex(output_mutex), follow_redirects(follow_redirects), headers(headers), bearer_token(bearer_token), probe_variations(probe_variations), username(username), password(password), body(body), verify_certs(verify_certs), method(method), version(version), url_queue(url_queue), queue_mtx(queue_mtx), do_quit(do_quit)
+        dirb_runner(){};
+        dirb_runner(dirb_runner const &) = delete;
+        dirb_runner(dirb_runner &&) = delete;
+        inline void set_headers(httplib::Headers const &headers)
         {
+            this->headers = headers;
         }
+        inline void add_header(std::string const &header, std::string const &value)
+        {
+            headers.emplace(header, value);
+        }
+        inline void add_header(std::pair<std::string, std::string> const &hv)
+        {
+            headers.emplace(hv);
+        }
+        inline bool has_base_url() const
+        {
+            return !base_url.empty();
+        }
+        inline void set_base_url(std::string const &base_url)
+        {
+            this->base_url = base_url;
+        }
+        inline void set_username(std::string const &username)
+        {
+            this->username = username;
+        }
+        inline void set_password(std::string const &password)
+        {
+            this->password = password;
+        }
+        inline void set_body(std::string const &body)
+        {
+            this->body = body;
+        }
+        inline void set_bearer_token(std::string const &bearer_token)
+        {
+            this->bearer_token = bearer_token;
+        }
+        inline void set_method(http::verb method)
+        {
+            this->method = method;
+        }
+        inline void set_verify_certs(bool verify_certs)
+        {
+            this->verify_certs = verify_certs;
+        }
+        inline void set_follow_redirects(bool follow_redirects)
+        {
+            this->follow_redirects = follow_redirects;
+        }
+        inline void set_probe_variations(std::vector<std::string> const &probe_variations)
+        {
+            this->probe_variations = probe_variations;
+        }
+        inline void set_url_queue(std::queue<std::string> const &url_queue)
+        {
+            this->url_queue = url_queue;
+        }
+        inline void add_to_queue(std::string const &url)
+        {
+            url_queue.emplace(url);
+        }
+        inline size_t url_queue_size() const
+        {
+            return url_queue.size();
+        }
+
         void http_worker();
+
+        static const std::string DefaultUserAgent;
 
     private:
         std::string base_url{};
-        std::mutex &output_mutex;
+        std::mutex output_mutex;
         bool follow_redirects{false};
         httplib::Headers headers{};
         std::string bearer_token{};
@@ -56,15 +121,13 @@ namespace dirb
         std::string body{};
         bool verify_certs{false};
         http::verb method{http::verb::get};
-        unsigned int version{11};
-        std::queue<std::string> &url_queue;
-        std::mutex &queue_mtx;
-        std::atomic_bool &do_quit;
+        std::queue<std::string> url_queue;
+        std::mutex queue_mutex;
+        std::atomic_bool do_quit{false};
 
-        void log(std::string const &message) const;
-        void error(std::string const &message) const;
+        void log(std::string const &message);
+        void error(std::string const &message);
     };
 
-    
 }
 #endif // __DIRB_HPP__

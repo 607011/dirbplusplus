@@ -4,7 +4,6 @@
  */
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -13,10 +12,7 @@
 #include <mutex>
 #include <thread>
 #include <string>
-#include <queue>
 #include <vector>
-
-#include <openssl/pem.h>
 
 #include "timer.hpp"
 #include "util.hpp"
@@ -42,8 +38,6 @@ namespace http = dirb::http;
 namespace
 {
     constexpr size_t DefaultNumThreads = 40U;
-    constexpr const char *DefaultHttpVersion = "1.1";
-    const std::string DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
 
     void about()
     {
@@ -87,7 +81,7 @@ namespace
             << "\n"
                "USAGE: "
             << PROJECT_NAME
-            << "[options] base_url\n"
+            << " [options] base_url\n"
                "\n"
                "  base_url\n"
                "\n"
@@ -116,28 +110,21 @@ namespace
                "  --cookie COOKIE\n"
                "    Send Cookie header with each request\n"
                "\n"
-               "  -m VERB [--method ...]\n"
+               "  -m VERB [--method ...] **NOT IMPLEMENTED YET**\n"
                "    HTTP request method to use; default is GET.\n"
                "    VERB is one of GET, OPTIONS, HEAD, PUT, PATCH, POST, DELETE\n"
                "    (case-insensitive)\n"
                "\n"
-               "  --body BODY\n"
+               "  --body BODY **NOT IMPLEMENTED YET**\n"
                "    Append BODY to each request; only applies to POST requests.\n"
                "\n"
                "  --content-type TYPE\n"
                "    Send TYPE in Content-Tpe header with each request\n"
                "\n"
-               "  --http-version VERSION\n"
-               "    Use HTTP version VERSION;\n"
-               "    VERSION must be one of `1.0`, `1.1`, oder `2.0`.\n"
-               "    default: "
-            << DefaultHttpVersion << "\n"
-            << "\n"
-               "\n"
                "  --user-agent USERAGENT\n"
                "    Send USERAGENT in User-Agent header,\n"
-               "    default: "
-            << DefaultUserAgent << "\n"
+               "    default: \""
+            << dirb::dirb_runner::DefaultUserAgent << "\"\n"
             << "\n"
                "  -X EXT1,EXT2,...EXTn [--probe-extensions ...]\n"
                "    Do not only check the path itself, but also try every\n"
@@ -166,20 +153,10 @@ int main(int argc, char *argv[])
 {
     size_t num_threads = DefaultNumThreads;
     std::vector<std::string> word_list_filenames{};
-    httplib::Headers headers{};
-    std::string base_url{};
-    std::string username{};
-    std::string password{};
-    std::string body{};
-    std::string bearer_token{};
-    std::string user_agent = DefaultUserAgent;
-    http::verb method{http::verb::get};
-    unsigned int http_version = 11;
-    bool verify_certs = false;
-    bool follow_redirects = false;
+    dirb::dirb_runner dirb_runner;
+    std::string user_agent;
     std::vector<std::string> probe_extensions{};
-    std::vector<std::string> probe_variations{};
-    [[maybe_unused]] int verbosity = 0;
+    int verbosity = 0;
 
     while (true)
     {
@@ -199,7 +176,6 @@ int main(int argc, char *argv[])
             {"body", required_argument, 0, 0},
             {"content-type", required_argument, 0, 0},
             {"method", required_argument, 0, 'm'},
-            {"http-version", required_argument, 0, 0},
             {"verify-certs", no_argument, 0, 0},
             {"help", no_argument, 0, '?'},
             {"license", no_argument, 0, 0},
@@ -214,7 +190,7 @@ int main(int argc, char *argv[])
         case 0:
             if (strcmp(long_options[option_index].name, "cookie") == 0)
             {
-                headers.emplace("Cookie", optarg);
+                dirb_runner.add_header("Cookie", optarg);
             }
             else if (strcmp(long_options[option_index].name, "user-agent") == 0)
             {
@@ -222,26 +198,11 @@ int main(int argc, char *argv[])
             }
             else if (strcmp(long_options[option_index].name, "body") == 0)
             {
-                body = optarg;
+                dirb_runner.set_body(optarg);
             }
             else if (strcmp(long_options[option_index].name, "verify-certs") == 0)
             {
-                verify_certs = true;
-            }
-            else if (strcmp(long_options[option_index].name, "http-version") == 0)
-            {
-                if (strcmp(optarg, "1.0") == 0)
-                {
-                    http_version = 10;
-                }
-                else if (strcmp(optarg, "1.1") == 0)
-                {
-                    http_version = 11;
-                }
-                else if (strcmp(optarg, "2.0") == 0)
-                {
-                    http_version = 20;
-                }
+                dirb_runner.set_verify_certs(true);
             }
             else if (strcmp(long_options[option_index].name, "license") == 0)
             {
@@ -251,36 +212,36 @@ int main(int argc, char *argv[])
             }
             break;
         case 'b':
-            bearer_token = optarg;
+            dirb_runner.set_bearer_token(optarg);
             break;
         case 'm':
             if (strncasecmp(optarg, "GET", 3) == 0)
             {
-                method = http::verb::get;
+                dirb_runner.set_method(http::verb::get);
             }
             else if (strncasecmp(optarg, "HEAD", 4) == 0)
             {
-                method = http::verb::head;
+                dirb_runner.set_method(http::verb::head);
             }
             else if (strncasecmp(optarg, "POST", 4) == 0)
             {
-                method = http::verb::post;
+                dirb_runner.set_method(http::verb::post);
             }
             else if (strncasecmp(optarg, "PATCH", 5) == 0)
             {
-                method = http::verb::patch;
+                dirb_runner.set_method(http::verb::patch);
             }
             else if (strncasecmp(optarg, "OPTIONS", 7) == 0)
             {
-                method = http::verb::options;
+                dirb_runner.set_method(http::verb::options);
             }
             else if (strncasecmp(optarg, "PUT", 3) == 0)
             {
-                method = http::verb::put;
+                dirb_runner.set_method(http::verb::put);
             }
             else if (strncasecmp(optarg, "DELETE", 6) == 0)
             {
-                method = http::verb::del;
+                dirb_runner.set_method(http::verb::del);
             }
             else
             {
@@ -289,13 +250,13 @@ int main(int argc, char *argv[])
             }
             break;
         case 'f':
-            follow_redirects = true;
+            dirb_runner.set_follow_redirects(true);
             break;
         case 'p':
         {
             auto const &cred = util::unpair(optarg, ':');
-            username = cred.first;
-            password = cred.second;
+            dirb_runner.set_username(cred.first);
+            dirb_runner.set_password(cred.second);
             break;
         }
         case 't':
@@ -308,10 +269,10 @@ int main(int argc, char *argv[])
             break;
         }
         case 'V':
-            probe_variations = util::split(optarg, ',');
+            dirb_runner.set_probe_variations(util::split(optarg, ','));
             break;
         case 'H':
-            headers.emplace(util::unpair(optarg, ':'));
+            dirb_runner.add_header(util::unpair(optarg, ':'));
             break;
         case 'v':
             ++verbosity;
@@ -329,65 +290,45 @@ int main(int argc, char *argv[])
     }
     if (optind < argc)
     {
-        base_url = argv[optind++];
+        dirb_runner.set_base_url(argv[optind++]);
     }
-    if (base_url.empty())
+    if (!dirb_runner.has_base_url())
     {
         about();
         brief_usage();
         return EXIT_FAILURE;
     }
-    headers.emplace("User-Agent", user_agent);
+    dirb_runner.add_header("User-Agent", user_agent);
 
     if (verbosity > 1)
     {
         std::cout << "Reading word list" << (word_list_filenames.size() == 1 ? "" : "s") << " ... " << std::flush;
     }
-    std::queue<std::string> url_queue;
     for (std::string const &word_list_filename : word_list_filenames)
     {
         std::ifstream is(word_list_filename);
         std::string line;
         while (std::getline(is, line))
         {
-            url_queue.push(line);
+            dirb_runner.add_to_queue(line);
             for (auto const &ext : probe_extensions)
             {
-                url_queue.push(line + ext);
+                dirb_runner.add_to_queue(line + ext);
             }
         }
     }
-    num_threads = std::min(num_threads, url_queue.size());
+    num_threads = std::min(num_threads, dirb_runner.url_queue_size());
     if (verbosity > 0)
     {
-        std::cout << "Read " << url_queue.size() << " URLs." << std::endl;
+        std::cout << "Read " << dirb_runner.url_queue_size() << " URLs." << std::endl;
         std::cout << "Starting " << num_threads << " worker threads ..." << std::endl;
     }
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
-    std::mutex queue_mutex;
-    std::mutex output_mutex;
-    std::atomic_bool do_quit{false};
-    dirb::dirb_runner dirb_opts{
-        base_url,
-        output_mutex,
-        follow_redirects,
-        headers,
-        bearer_token,
-        probe_variations,
-        username,
-        password,
-        body,
-        verify_certs,
-        method,
-        http_version,
-        url_queue,
-        queue_mutex,
-        do_quit};
     timer t;
     for (size_t i = 0; i < num_threads; ++i)
     {
-        workers.emplace_back(&dirb::dirb_runner::http_worker, &dirb_opts);
+        workers.emplace_back(&dirb::dirb_runner::http_worker, &dirb_runner);
     }
     for (auto &worker : workers)
     {
