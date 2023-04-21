@@ -6,6 +6,7 @@
 
 - Git
 - OpenSSL libraries ≥ 1.1.1t
+- xxd
 
 ### Windows
 
@@ -52,8 +53,9 @@ In Visual Studio Developer Command Prompt:
 
 ```bash
 git clone https://github.com/607011/dirbplusplus.git dirb++
-mkdir -p dirb++/build
-cd dirb++/build
+cd dirb++
+md build
+cd build
 git submodule init
 git submodule update
 cmake -G Ninja -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" ..
