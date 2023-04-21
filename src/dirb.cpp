@@ -55,22 +55,22 @@ namespace dirb
 
     void dirb_runner::log(std::string const &message)
     {
-        const std::lock_guard<std::mutex> lock(output_mutex);
+        const std::lock_guard<std::mutex> lock(output_mutex_);
         std::cout << message << std::endl;
     }
 
     void dirb_runner::error(std::string const &message)
     {
-        const std::lock_guard<std::mutex> lock(output_mutex);
+        const std::lock_guard<std::mutex> lock(output_mutex_);
         std::cerr << message << std::endl;
     }
 
     void dirb_runner::http_worker()
     {
-        httplib::Client cli(base_url.c_str());
+        httplib::Client cli(base_url_.c_str());
         X509_STORE *cts = nullptr;
         {
-            std::lock_guard<std::mutex> lock(output_mutex);
+            std::lock_guard<std::mutex> lock(output_mutex_);
             cts = util::read_certificates(cli.ssl_context(), std::cerr);
         }
         if (cts == nullptr)
@@ -78,31 +78,31 @@ namespace dirb
             return;
         }
         cli.set_ca_cert_store(cts);
-        cli.enable_server_certificate_verification(verify_certs);
-        if (!bearer_token.empty())
+        cli.enable_server_certificate_verification(verify_certs_);
+        if (!bearer_token_.empty())
         {
-            cli.set_bearer_token_auth(bearer_token.c_str());
+            cli.set_bearer_token_auth(bearer_token_.c_str());
         }
-        if (!username.empty() && !password.empty())
+        if (!username_.empty() && !password_.empty())
         {
-            cli.set_basic_auth(username.c_str(), password.c_str());
+            cli.set_basic_auth(username_.c_str(), password_.c_str());
         }
-        cli.set_follow_location(follow_redirects);
+        cli.set_follow_location(follow_redirects_);
         cli.set_compress(true);
-        cli.set_default_headers(headers);
-        while (!do_quit)
+        cli.set_default_headers(headers_);
+        while (!do_quit_)
         {
             std::string url;
             {
-                std::lock_guard<std::mutex> lock(queue_mutex);
-                if (url_queue.empty())
+                std::lock_guard<std::mutex> lock(queue_mutex_);
+                if (url_queue_.empty())
                 {
                     return;
                 }
                 else
                 {
-                    url = url_queue.front();
-                    url_queue.pop();
+                    url = url_queue_.front();
+                    url_queue_.pop();
                 }
             }
             if (url.empty())
@@ -131,12 +131,12 @@ namespace dirb
                 }
                 else if (res->status == 200)
                 {
-                    std::lock_guard<std::mutex> lock(queue_mutex);
+                    std::lock_guard<std::mutex> lock(queue_mutex_);
                     for (auto const &v : probe_variations)
                     {
-                        url_queue.push(url + v);
+                        url_queue_.push(url + v);
                     }
-                    if (verify_certs)
+                    if (verify_certs_)
                     {
                         if (auto result = cli.get_openssl_verify_result())
                         {
@@ -152,8 +152,8 @@ namespace dirb
                 ss << (-1) << ';' << '"' << url << '"' << ';' << ';' << ';' << ';' << res.error();
                 error(ss.str());
                 {
-                    std::lock_guard<std::mutex> lock(queue_mutex);
-                    url_queue.push(url);
+                    std::lock_guard<std::mutex> lock(queue_mutex_);
+                    url_queue_.push(url);
                 }
             }
         }
