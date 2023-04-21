@@ -10,7 +10,7 @@
 
 ### Windows
 
-Get `xxd.exe` from https://sourceforge.net/projects/xxd-for-windows/ and copy it to a location thats in the system's `Path`
+Get `xxd.exe` from https://sourceforge.net/projects/xxd-for-windows/ and copy it to a location that's in the system's `Path`.
 
 Install OpenSSL:
 
