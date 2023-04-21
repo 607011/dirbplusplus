@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(dirb
-        VERSION 0.9
+        VERSION 0.9.1
         DESCRIPTION "Fast Dir Buster Clone"
         LANGUAGES CXX C)
 
