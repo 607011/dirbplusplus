@@ -53,7 +53,15 @@ namespace dirb
     }
 
     const std::string dirb_runner::DefaultUserAgent = std::string(PROJECT_NAME) + "/" + PROJECT_VERSION;
-    const std::vector<int> dirb_runner::DefaultStatusCodeFilter = {200, 204, 301, 302, 307, 308, 401, 403};
+    const std::unordered_map<int, bool> dirb_runner::DefaultStatusCodeFilter = {
+        {200, true},
+        {204, true},
+        {301, true},
+        {302, true},
+        {307, true},
+        {308, true},
+        {401, true},
+        {403, true}};
 
     void dirb_runner::log(std::string const &message)
     {
@@ -149,7 +157,7 @@ namespace dirb
                         }
                     }
                 }
-                if (std::find(status_codes_.begin(), status_codes_.end(), res->status) != status_codes_.end())
+                if (status_codes_.contains(res->status))
                 {
                     log(ss.str());
                 }

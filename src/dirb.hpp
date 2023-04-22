@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <queue>
+#include <unordered_map>
 #include <vector>
 
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
@@ -104,7 +105,7 @@ namespace dirb
         {
             return url_queue_.size();
         }
-        inline void set_status_code_filter(std::vector<int> const &codes)
+        inline void set_status_code_filter(std::unordered_map<int, bool> const &codes)
         {
             this->status_codes_ = codes;
         }
@@ -112,7 +113,7 @@ namespace dirb
         void http_worker();
 
         static const std::string DefaultUserAgent;
-        static const std::vector<int> DefaultStatusCodeFilter;
+        static const std::unordered_map<int, bool> DefaultStatusCodeFilter;
 
     private:
         std::string base_url_{};
@@ -129,7 +130,7 @@ namespace dirb
         std::queue<std::string> url_queue_;
         std::mutex queue_mutex_;
         std::atomic_bool do_quit_{false};
-        std::vector<int> status_codes_{DefaultStatusCodeFilter};
+        std::unordered_map<int, bool> status_codes_{DefaultStatusCodeFilter};
 
         void log(std::string const &message);
         void error(std::string const &message);

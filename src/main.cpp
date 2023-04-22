@@ -9,6 +9,7 @@
 #include <cstring>
 #include <getopt.h>
 #include <iostream>
+#include <iterator>
 #include <mutex>
 #include <numeric>
 #include <thread>
@@ -113,9 +114,18 @@ namespace
                "\n"
                "  -i CODELIST [--include ...] \n"
                "    Only include HTTP status codes in CODELIST.\n"
-               "    CODELIST is a comma-separated list of status codes, e.g.\n"
-               "    "
-            << util::join(dirb::dirb_runner::DefaultStatusCodeFilter, ',')
+               "    CODELIST is a comma-separated list of status codes.\n"
+               "    Default: ";
+        std::vector<int> keys;
+        keys.reserve(dirb::dirb_runner::DefaultStatusCodeFilter.size());
+        std::transform(
+            dirb::dirb_runner::DefaultStatusCodeFilter.begin(),
+            dirb::dirb_runner::DefaultStatusCodeFilter.end(),
+            std::back_inserter(keys),
+            [](auto pair)
+            { return pair.first; });
+        std::cout
+            << util::join(keys, ',')
             << "\n\n"
                "  -m VERB [--method ...] **NOT IMPLEMENTED YET**\n"
                "    HTTP request method to use; default is GET.\n"
@@ -176,6 +186,7 @@ int main(int argc, char *argv[])
             {"probe-extensions", required_argument, 0, 'X'},
             {"probe-variations", required_argument, 0, 'V'},
             {"word-list", required_argument, 0, 'w'},
+            {"include", required_argument, 0, 'i'},
             {"credentials", required_argument, 0, 'p'},
             {"bearer-token", required_argument, 0, 'b'},
             {"cookie", required_argument, 0, 0},
@@ -187,7 +198,7 @@ int main(int argc, char *argv[])
             {"help", no_argument, 0, '?'},
             {"license", no_argument, 0, 0},
             {0, 0, 0, 0}};
-        int c = getopt_long(argc, argv, "?b:fp:H:m:t:vV:w:X:", long_options, &option_index);
+        int c = getopt_long(argc, argv, "?i:b:fp:H:m:t:vV:w:X:", long_options, &option_index);
         if (c == -1)
         {
             break;
@@ -218,6 +229,16 @@ int main(int argc, char *argv[])
                 return EXIT_SUCCESS;
             }
             break;
+        case 'i':
+        {
+            std::unordered_map<int, bool> codes;
+            for (auto code : util::split(optarg, ','))
+            {
+                codes.emplace(std::stoi(code), true);
+            }
+            dirb_runner.set_status_code_filter(codes);
+            break;
+        }
         case 'b':
             dirb_runner.set_bearer_token(optarg);
             break;
