@@ -173,103 +173,125 @@ int main(int argc, char *argv[])
     using argparser = argparser::argparser;
     argparser opt{argc, argv};
     opt
-        .reg({"-f", "--follow-redirects"}, argparser::no_argument, [&dirb_runner](std::string const &)
+        .reg({"-f", "--follow-redirects"}, argparser::no_argument,
+             [&dirb_runner](std::string const &)
              { dirb_runner.set_follow_redirects(true); })
-        .reg({"-v", "--verbose"}, argparser::no_argument, [&verbosity](std::string const &)
+        .reg({"-v", "--verbose"}, argparser::no_argument,
+             [&verbosity](std::string const &)
              { ++verbosity; })
-        .reg({"-t", "--threads"}, argparser::required_argument, [&num_threads](std::string const &val)
+        .reg({"-t", "--threads"}, argparser::required_argument,
+             [&num_threads](std::string const &val)
              { num_threads = static_cast<unsigned int>(std::stoi(val)); })
-        .reg({"-H", "--header"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+        .reg({"-H", "--header"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              { dirb_runner.add_header(util::unpair(val, ':')); })
-        .reg({"-X", "--probe-extensions"}, argparser::required_argument, [&probe_extensions](std::string const &val)
+        .reg({"-X", "--probe-extensions"}, argparser::required_argument,
+             [&probe_extensions](std::string const &val)
              { probe_extensions = util::split(val, ','); })
-        .reg({"-V", "--probe-variations"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+        .reg({"-V", "--probe-variations"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              { dirb_runner.set_probe_variations(util::split(val, ',')); })
-        .reg({"-w", "--word-list"}, argparser::required_argument, [&word_list_filenames](std::string const &val)
+        .reg({"-w", "--word-list"}, argparser::required_argument,
+             [&word_list_filenames](std::string const &val)
              { word_list_filenames.push_back(val); })
-        .reg({"-i", "--include"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+        .reg({"-i", "--include"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              {
-                std::unordered_map<int, bool> codes;
-                for (auto code : util::split(val, ','))
-                {
-                    codes.emplace(std::stoi(code), true);
-                }
-                dirb_runner.set_status_code_filter(codes); })
-        .reg({"-p", "--credentials"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+                 std::unordered_map<int, bool> codes;
+                 for (auto code : util::split(val, ','))
+                 {
+                     codes.emplace(std::stoi(code), true);
+                 }
+                 dirb_runner.set_status_code_filter(codes);
+             })
+        .reg({"-p", "--credentials"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              {
-                auto const &cred = util::unpair(val, ':');
-                dirb_runner.set_username(cred.first);
-                dirb_runner.set_password(cred.second); })
-        .reg({"-b", "--bearer-token"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+                 auto const &cred = util::unpair(val, ':');
+                 dirb_runner.set_username(cred.first);
+                 dirb_runner.set_password(cred.second);
+             })
+        .reg({"-b", "--bearer-token"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              { dirb_runner.set_bearer_token(val); })
-        .reg({"--cookie"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+        .reg({"--cookie"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              { dirb_runner.add_header("Cookie", val); })
-        .reg({"--user-agent"}, argparser::required_argument, [&user_agent](std::string const &val)
+        .reg({"--user-agent"}, argparser::required_argument,
+             [&user_agent](std::string const &val)
              { user_agent = val; })
-        .reg({"--body"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+        .reg({"--body"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              { dirb_runner.set_body(val); })
-        .reg({"--verify-certs"}, argparser::no_argument, [&dirb_runner](std::string const &)
+        .reg({"--verify-certs"}, argparser::no_argument,
+             [&dirb_runner](std::string const &)
              { dirb_runner.set_verify_certs(true); })
-        .reg({"--content-type"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+        .reg({"--content-type"}, argparser::required_argument,
+             [&dirb_runner](std::string const &val)
              { dirb_runner.add_header(std::make_pair("Content-Type", val)); })
-        .reg({"-m", "--method"}, argparser::required_argument, [&dirb_runner](std::string val)
+        .reg({"-m", "--method"}, argparser::required_argument,
+             [&dirb_runner](std::string val)
              {
-                std::transform(val.begin(), val.end(), val.begin(), [](int c) { return std::toupper(c); });
-                if (val == "GET")
-                {
-                    dirb_runner.set_method(http::verb::get);
-                }
-                else if (val == "HEAD")
-                {
-                    dirb_runner.set_method(http::verb::head);
-                }
-                else if (val == "POST")
-                {
-                    dirb_runner.set_method(http::verb::post);
-                }
-                else if (val == "PATCH")
-                {
-                    dirb_runner.set_method(http::verb::patch);
-                }
-                else if (val == "OPTIONS")
-                {
-                    dirb_runner.set_method(http::verb::options);
-                }
-                else if (val == "PUT")
-                {
-                    dirb_runner.set_method(http::verb::put);
-                }
-                else if (val == "DELETE")
-                {
-                    dirb_runner.set_method(http::verb::del);
-                }
-                else
-                {
-                    std::cerr << "\u001b[31;1mERROR:\u001b[0m Invalid method '" << optarg << "'.\n";
-                    exit(EXIT_FAILURE);
-                } })
-        .reg({"-?", "--help"}, argparser::no_argument, [](std::string const &)
+                 std::transform(val.begin(), val.end(), val.begin(), [](int c)
+                                { return std::toupper(c); });
+                 if (val == "GET")
+                 {
+                     dirb_runner.set_method(http::verb::get);
+                 }
+                 else if (val == "HEAD")
+                 {
+                     dirb_runner.set_method(http::verb::head);
+                 }
+                 else if (val == "POST")
+                 {
+                     dirb_runner.set_method(http::verb::post);
+                 }
+                 else if (val == "PATCH")
+                 {
+                     dirb_runner.set_method(http::verb::patch);
+                 }
+                 else if (val == "OPTIONS")
+                 {
+                     dirb_runner.set_method(http::verb::options);
+                 }
+                 else if (val == "PUT")
+                 {
+                     dirb_runner.set_method(http::verb::put);
+                 }
+                 else if (val == "DELETE")
+                 {
+                     dirb_runner.set_method(http::verb::del);
+                 }
+                 else
+                 {
+                     std::cerr << "\u001b[31;1mERROR:\u001b[0m Invalid method '" << val << "'.\n";
+                     exit(EXIT_FAILURE);
+                 }
+             })
+        .reg({"-?", "--help"}, argparser::no_argument,
+             [](std::string const &)
              {
-                about();
-                usage();
-                exit(EXIT_SUCCESS); })
-        .reg({"--license"}, argparser::no_argument, [](std::string const &)
+                 about();
+                 usage();
+                 exit(EXIT_SUCCESS);
+             })
+        .reg({"--license"}, argparser::no_argument,
+             [](std::string const &)
              {
-                about();
-                license();
-                exit(EXIT_SUCCESS); })
+                 about();
+                 license();
+                 exit(EXIT_SUCCESS);
+             })
         .pos([&dirb_runner](std::string const &val)
              { dirb_runner.set_base_url(val); });
-    
     try
     {
         opt();
     }
-    catch(::argparser::argument_required_exception const & e)
+    catch (::argparser::argument_required_exception const &e)
     {
         std::cerr << e.what() << '\n';
     }
-    
 
     if (!dirb_runner.has_base_url())
     {
