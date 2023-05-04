@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 
 project(dirb
         VERSION 0.9.1
@@ -48,17 +48,13 @@ set(DIRB_SOURCES
   certs.cpp
 )
 
-if (WIN32)
-  set(DIRB_SOURCES ${DIRB_SOURCES} 3rdparty/getopt-for-windows/getopt.c)
-  set(PROJECT_INCLUDE_DIRS ${PROJECT_INCLUDE_DIRS} 3rdparty/getopt-for-windows)
-endif()
-
 add_executable(dirb ${DIRB_SOURCES})
 
 target_include_directories(dirb
   PRIVATE ${PROJECT_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
   3rdparty/cpp-httplib
+  3rdparty/getopt-cpp/include
   build
 )
 

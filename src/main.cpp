@@ -7,7 +7,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
-#include <getopt.h>
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -16,16 +15,13 @@
 #include <string>
 #include <vector>
 
+#include <getopt.hpp>
+
 #include "timer.hpp"
 #include "util.hpp"
 #include "dirb.hpp"
 
 #include "certs.hpp"
-
-#ifdef WIN32
-#include <Windows.h>
-#define strncasecmp(s1, s2, n) _strnicmp(s1, s2, n)
-#endif
 
 namespace chrono = std::chrono;
 namespace http = dirb::http;
@@ -39,7 +35,7 @@ namespace http = dirb::http;
 
 namespace
 {
-    constexpr size_t DefaultNumThreads = 40U;
+    constexpr std::size_t DefaultNumThreads = 40U;
 
     void about()
     {
@@ -136,7 +132,7 @@ namespace
                "    Append BODY to each request; only applies to POST requests.\n"
                "\n"
                "  --content-type TYPE\n"
-               "    Send TYPE in Content-Tpe header with each request\n"
+               "    Send TYPE in Content-Type header with each request\n"
                "\n"
                "  --user-agent USERAGENT\n"
                "    Send USERAGENT in User-Agent header,\n"
@@ -168,158 +164,113 @@ namespace
 
 int main(int argc, char *argv[])
 {
-    size_t num_threads = DefaultNumThreads;
+    std::size_t num_threads{DefaultNumThreads};
     std::vector<std::string> word_list_filenames{};
-    dirb::dirb_runner dirb_runner;
-    std::string user_agent;
+    dirb::dirb_runner dirb_runner{};
+    std::string user_agent{dirb::dirb_runner::DefaultUserAgent};
     std::vector<std::string> probe_extensions{};
-    int verbosity = 0;
-
-    while (true)
-    {
-        int option_index = 0;
-        static struct option long_options[] = {
-            {"follow-redirects", no_argument, 0, 'f'},
-            {"verbose", no_argument, 0, 'v'},
-            {"threads", required_argument, 0, 't'},
-            {"header", required_argument, 0, 'H'},
-            {"probe-extensions", required_argument, 0, 'X'},
-            {"probe-variations", required_argument, 0, 'V'},
-            {"word-list", required_argument, 0, 'w'},
-            {"include", required_argument, 0, 'i'},
-            {"credentials", required_argument, 0, 'p'},
-            {"bearer-token", required_argument, 0, 'b'},
-            {"cookie", required_argument, 0, 0},
-            {"user-agent", required_argument, 0, 0},
-            {"body", required_argument, 0, 0},
-            {"content-type", required_argument, 0, 0},
-            {"method", required_argument, 0, 'm'},
-            {"verify-certs", no_argument, 0, 0},
-            {"help", no_argument, 0, '?'},
-            {"license", no_argument, 0, 0},
-            {0, 0, 0, 0}};
-        int c = getopt_long(argc, argv, "?i:b:fp:H:m:t:vV:w:X:", long_options, &option_index);
-        if (c == -1)
-        {
-            break;
-        }
-        switch (c)
-        {
-        case 0:
-            if (strcmp(long_options[option_index].name, "cookie") == 0)
-            {
-                dirb_runner.add_header("Cookie", optarg);
-            }
-            else if (strcmp(long_options[option_index].name, "user-agent") == 0)
-            {
-                user_agent = optarg;
-            }
-            else if (strcmp(long_options[option_index].name, "body") == 0)
-            {
-                dirb_runner.set_body(optarg);
-            }
-            else if (strcmp(long_options[option_index].name, "verify-certs") == 0)
-            {
-                dirb_runner.set_verify_certs(true);
-            }
-            else if (strcmp(long_options[option_index].name, "license") == 0)
-            {
+    int verbosity{0};
+    using argparser = argparser::argparser;
+    argparser opt{argc, argv};
+    opt
+        .reg({"-f", "--follow-redirects"}, argparser::no_argument, [&dirb_runner](std::string const &)
+             { dirb_runner.set_follow_redirects(true); })
+        .reg({"-v", "--verbose"}, argparser::no_argument, [&verbosity](std::string const &)
+             { ++verbosity; })
+        .reg({"-t", "--threads"}, argparser::required_argument, [&num_threads](std::string const &val)
+             { num_threads = static_cast<unsigned int>(std::stoi(val)); })
+        .reg({"-H", "--header"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             { dirb_runner.add_header(util::unpair(val, ':')); })
+        .reg({"-X", "--probe-extensions"}, argparser::required_argument, [&probe_extensions](std::string const &val)
+             { probe_extensions = util::split(val, ','); })
+        .reg({"-V", "--probe-variations"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             { dirb_runner.set_probe_variations(util::split(val, ',')); })
+        .reg({"-w", "--word-list"}, argparser::required_argument, [&word_list_filenames](std::string const &val)
+             { word_list_filenames.push_back(val); })
+        .reg({"-i", "--include"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             {
+                std::unordered_map<int, bool> codes;
+                for (auto code : util::split(val, ','))
+                {
+                    codes.emplace(std::stoi(code), true);
+                }
+                dirb_runner.set_status_code_filter(codes); })
+        .reg({"-p", "--credentials"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             {
+                auto const &cred = util::unpair(val, ':');
+                dirb_runner.set_username(cred.first);
+                dirb_runner.set_password(cred.second); })
+        .reg({"-b", "--bearer-token"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             { dirb_runner.set_bearer_token(val); })
+        .reg({"--cookie"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             { dirb_runner.add_header("Cookie", val); })
+        .reg({"--user-agent"}, argparser::required_argument, [&user_agent](std::string const &val)
+             { user_agent = val; })
+        .reg({"--body"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             { dirb_runner.set_body(val); })
+        .reg({"--verify-certs"}, argparser::no_argument, [&dirb_runner](std::string const &)
+             { dirb_runner.set_verify_certs(true); })
+        .reg({"--content-type"}, argparser::required_argument, [&dirb_runner](std::string const &val)
+             { dirb_runner.add_header(std::make_pair("Content-Type", val)); })
+        .reg({"-m", "--method"}, argparser::required_argument, [&dirb_runner](std::string val)
+             {
+                std::transform(val.begin(), val.end(), val.begin(), [](int c) { return std::toupper(c); });
+                if (val == "GET")
+                {
+                    dirb_runner.set_method(http::verb::get);
+                }
+                else if (val == "HEAD")
+                {
+                    dirb_runner.set_method(http::verb::head);
+                }
+                else if (val == "POST")
+                {
+                    dirb_runner.set_method(http::verb::post);
+                }
+                else if (val == "PATCH")
+                {
+                    dirb_runner.set_method(http::verb::patch);
+                }
+                else if (val == "OPTIONS")
+                {
+                    dirb_runner.set_method(http::verb::options);
+                }
+                else if (val == "PUT")
+                {
+                    dirb_runner.set_method(http::verb::put);
+                }
+                else if (val == "DELETE")
+                {
+                    dirb_runner.set_method(http::verb::del);
+                }
+                else
+                {
+                    std::cerr << "\u001b[31;1mERROR:\u001b[0m Invalid method '" << optarg << "'.\n";
+                    exit(EXIT_FAILURE);
+                } })
+        .reg({"-?", "--help"}, argparser::no_argument, [](std::string const &)
+             {
+                about();
+                usage();
+                exit(EXIT_SUCCESS); })
+        .reg({"--license"}, argparser::no_argument, [](std::string const &)
+             {
                 about();
                 license();
-                return EXIT_SUCCESS;
-            }
-            break;
-        case 'i':
-        {
-            std::unordered_map<int, bool> codes;
-            for (auto code : util::split(optarg, ','))
-            {
-                codes.emplace(std::stoi(code), true);
-            }
-            dirb_runner.set_status_code_filter(codes);
-            break;
-        }
-        case 'b':
-            dirb_runner.set_bearer_token(optarg);
-            break;
-        case 'm':
-            if (strncasecmp(optarg, "GET", 3) == 0)
-            {
-                dirb_runner.set_method(http::verb::get);
-            }
-            else if (strncasecmp(optarg, "HEAD", 4) == 0)
-            {
-                dirb_runner.set_method(http::verb::head);
-            }
-            else if (strncasecmp(optarg, "POST", 4) == 0)
-            {
-                dirb_runner.set_method(http::verb::post);
-            }
-            else if (strncasecmp(optarg, "PATCH", 5) == 0)
-            {
-                dirb_runner.set_method(http::verb::patch);
-            }
-            else if (strncasecmp(optarg, "OPTIONS", 7) == 0)
-            {
-                dirb_runner.set_method(http::verb::options);
-            }
-            else if (strncasecmp(optarg, "PUT", 3) == 0)
-            {
-                dirb_runner.set_method(http::verb::put);
-            }
-            else if (strncasecmp(optarg, "DELETE", 6) == 0)
-            {
-                dirb_runner.set_method(http::verb::del);
-            }
-            else
-            {
-                std::cerr << "\u001b[31;1mERROR:\u001b[0m Invalid method '" << optarg << "'.\n";
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'f':
-            dirb_runner.set_follow_redirects(true);
-            break;
-        case 'p':
-        {
-            auto const &cred = util::unpair(optarg, ':');
-            dirb_runner.set_username(cred.first);
-            dirb_runner.set_password(cred.second);
-            break;
-        }
-        case 't':
-            num_threads = static_cast<unsigned int>(atoi(optarg));
-            break;
-        case 'X':
-        {
-            std::cout << optarg << std::endl;
-            probe_extensions = util::split(optarg, ',');
-            break;
-        }
-        case 'V':
-            dirb_runner.set_probe_variations(util::split(optarg, ','));
-            break;
-        case 'H':
-            dirb_runner.add_header(util::unpair(optarg, ':'));
-            break;
-        case 'v':
-            ++verbosity;
-            break;
-        case 'w':
-            word_list_filenames.push_back(optarg);
-            break;
-        case '?':
-            about();
-            usage();
-            return EXIT_SUCCESS;
-        default:
-            break;
-        }
-    }
-    if (optind < argc)
+                exit(EXIT_SUCCESS); })
+        .pos([&dirb_runner](std::string const &val)
+             { dirb_runner.set_base_url(val); });
+    
+    try
     {
-        dirb_runner.set_base_url(argv[optind++]);
+        opt();
     }
+    catch(::argparser::argument_required_exception const & e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+    
+
     if (!dirb_runner.has_base_url())
     {
         about();
@@ -354,7 +305,7 @@ int main(int argc, char *argv[])
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
     timer t;
-    for (size_t i = 0; i < num_threads; ++i)
+    for (std::size_t i = 0; i < num_threads; ++i)
     {
         workers.emplace_back(&dirb::dirb_runner::http_worker, &dirb_runner);
     }
