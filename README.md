@@ -54,10 +54,10 @@ In Visual Studio Developer Command Prompt:
 ```bash
 git clone https://github.com/607011/dirbplusplus.git dirb++
 cd dirb++
-md build
-cd build
 git submodule init
 git submodule update --remote --merge
+md build
+cd build
 cmake -G Ninja -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" ..
 cmake --build . --config Release
 ```
