@@ -1,6 +1,6 @@
-# Dirb++
+# dirb++
 
-**Fast, multithreaded version of the original Dirb**
+**Fast, multithreaded version of the original dirb**
 
 ## Prerequisites
 
@@ -68,4 +68,4 @@ See [LICENSE](LICENSE).
 
 ## Copyright
 
-Copyright (c) 2023 Oliver Lau
+Copyright ©️ 2023–2026 Oliver Lau
