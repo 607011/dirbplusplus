@@ -1,6 +1,6 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
- * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
+ * Copyright (c) 2023-2026 Oliver Lau <oliver@ersatzworld.net>
  */
 
 #include <algorithm>
@@ -9,8 +9,7 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
-#include <mutex>
-#include <numeric>
+#include <string_view>
 #include <thread>
 #include <string>
 #include <vector>
@@ -21,7 +20,6 @@
 #include "util.hpp"
 #include "dirb.hpp"
 
-#include "certs.hpp"
 
 namespace chrono = std::chrono;
 namespace http = dirb::http;
@@ -33,9 +31,38 @@ namespace http = dirb::http;
 #define PROJECT_VERSION "unknown"
 #endif
 
+extern const unsigned char dirb_default_wordlist[];
+extern const std::size_t dirb_default_wordlist_size;
+
 namespace
 {
     constexpr std::size_t DefaultNumThreads = 40U;
+
+    std::vector<std::string> embedded_default_wordlist()
+    {
+        std::vector<std::string> entries;
+        std::string_view data{reinterpret_cast<char const *>(dirb_default_wordlist), dirb_default_wordlist_size};
+        std::size_t start = 0;
+        while (start < data.size())
+        {
+            auto end = data.find('\n', start);
+            auto line = end == std::string_view::npos ? data.substr(start) : data.substr(start, end - start);
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.remove_suffix(1);
+            }
+            if (!line.empty())
+            {
+                entries.emplace_back(line);
+            }
+            if (end == std::string_view::npos)
+            {
+                break;
+            }
+            start = end + 1;
+        }
+        return entries;
+    }
 
     void about()
     {
@@ -90,7 +117,7 @@ namespace
                "OPTIONS:\n"
                "\n"
                "  -w FILENAME [--word-list ...]\n"
-               "    Add word list file\n"
+               "    Add word list file (default: bundled wordlists/common.txt)\n"
                "\n"
                "  -v [--verbose]\n"
                "    Increase verbosity of output (only applies to standard output mode)\n"
@@ -303,18 +330,32 @@ int main(int argc, char *argv[])
 
     if (verbosity > 1)
     {
-        std::cout << "Reading word list" << (word_list_filenames.size() == 1 ? "" : "s") << " ... " << std::flush;
+        std::cout << "Reading word list" << (word_list_filenames.empty() ? "" : (word_list_filenames.size() == 1 ? "" : "s")) << " ... " << std::flush;
     }
-    for (std::string const &word_list_filename : word_list_filenames)
+    if (word_list_filenames.empty())
     {
-        std::ifstream is(word_list_filename);
-        std::string line;
-        while (std::getline(is, line))
+        for (std::string const &line : embedded_default_wordlist())
         {
             dirb_runner.add_to_queue(line);
             for (auto const &ext : probe_extensions)
             {
                 dirb_runner.add_to_queue(line + ext);
+            }
+        }
+    }
+    else
+    {
+        for (std::string const &word_list_filename : word_list_filenames)
+        {
+            std::ifstream is(word_list_filename);
+            std::string line;
+            while (std::getline(is, line))
+            {
+                dirb_runner.add_to_queue(line);
+                for (auto const &ext : probe_extensions)
+                {
+                    dirb_runner.add_to_queue(line + ext);
+                }
             }
         }
     }
@@ -326,6 +367,7 @@ int main(int argc, char *argv[])
     }
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
+    std::thread logger_thread(&dirb::dirb_runner::logger_worker, &dirb_runner);
     timer t;
     for (std::size_t i = 0; i < num_threads; ++i)
     {
@@ -335,6 +377,8 @@ int main(int argc, char *argv[])
     {
         worker.join();
     }
+    dirb_runner.stop_logger();
+    logger_thread.join();
     if (verbosity > 0)
     {
         std::cout << "Elapsed time: "

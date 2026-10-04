@@ -1,6 +1,6 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
- * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
+ * Copyright (c) 2023-2026 Oliver Lau <oliver@ersatzworld.net>
  */
 
 #include <algorithm>
@@ -11,6 +11,19 @@
 
 namespace dirb
 {
+    namespace
+    {
+        std::string safe_header_value(httplib::Response const &response, std::string const &header_name)
+        {
+            if (!response.has_header(header_name))
+            {
+                return {};
+            }
+            auto value = response.get_header_value(header_name);
+            return value.empty() ? std::string{} : value;
+        }
+    }
+
     namespace util
     {
         X509_STORE *read_certificates(SSL_CTX *ssl_ctx, std::ostream &err)
@@ -63,16 +76,104 @@ namespace dirb
         {401, true},
         {403, true}};
 
+    void dirb_runner::enqueue_log_message(std::string const &message, bool is_error)
+    {
+        std::string entry = is_error ? "[ERROR] " + message : message;
+        {
+            std::lock_guard<std::mutex> lock(log_queue_mutex_);
+            log_queue_.push(std::move(entry));
+        }
+        log_cv_.notify_one();
+    }
+
     void dirb_runner::log(std::string const &message)
     {
-        const std::lock_guard<std::mutex> lock(output_mutex_);
-        std::cout << message << std::endl;
+        enqueue_log_message(message, false);
     }
 
     void dirb_runner::error(std::string const &message)
     {
-        const std::lock_guard<std::mutex> lock(output_mutex_);
-        std::cerr << message << std::endl;
+        enqueue_log_message(message, true);
+    }
+
+    void dirb_runner::stop_logger()
+    {
+        logger_stop_.store(true);
+        log_cv_.notify_all();
+    }
+
+    void dirb_runner::logger_worker()
+    {
+        while (true)
+        {
+            std::string message;
+            {
+                std::unique_lock<std::mutex> lock(log_queue_mutex_);
+                log_cv_.wait(lock, [this]
+                             { return logger_stop_.load() || !log_queue_.empty(); });
+                if (logger_stop_.load() && log_queue_.empty())
+                {
+                    break;
+                }
+                message = std::move(log_queue_.front());
+                log_queue_.pop();
+            }
+
+            if (message.rfind("[ERROR] ", 0) == 0)
+            {
+                std::cerr << message.substr(8) << std::endl;
+            }
+            else
+            {
+                std::cout << message << std::endl;
+            }
+        }
+    }
+
+    httplib::Result dirb_runner::send_request(httplib::Client &cli, std::string const &url) const
+    {
+        std::string content_type = "application/x-www-form-urlencoded";
+        auto header_it = headers_.find("Content-Type");
+        if (header_it != headers_.end())
+        {
+            content_type = header_it->second;
+        }
+
+        switch (method_)
+        {
+        case http::verb::get:
+            return cli.Get(url.c_str());
+        case http::verb::head:
+            return cli.Head(url.c_str());
+        case http::verb::post:
+            if (body_.empty())
+            {
+                return cli.Post(url.c_str());
+            }
+            return cli.Post(url.c_str(), body_.c_str(), body_.size(), content_type);
+        case http::verb::put:
+            if (body_.empty())
+            {
+                return cli.Put(url.c_str());
+            }
+            return cli.Put(url.c_str(), body_.c_str(), body_.size(), content_type);
+        case http::verb::patch:
+            if (body_.empty())
+            {
+                return cli.Patch(url.c_str());
+            }
+            return cli.Patch(url.c_str(), body_.c_str(), body_.size(), content_type);
+        case http::verb::del:
+            if (body_.empty())
+            {
+                return cli.Delete(url.c_str());
+            }
+            return cli.Delete(url.c_str(), body_.c_str(), body_.size(), content_type);
+        case http::verb::options:
+            return cli.Options(url.c_str());
+        default:
+            return cli.Get(url.c_str());
+        }
     }
 
     void dirb_runner::http_worker()
@@ -81,10 +182,7 @@ namespace dirb
         if (verify_certs_)
         {
             X509_STORE *cts = nullptr;
-            {
-                std::lock_guard<std::mutex> lock(output_mutex_);
-                cts = util::read_certificates(cli.ssl_context(), std::cerr);
-            }
+            cts = util::read_certificates(cli.ssl_context(), std::cerr);
             if (cts == nullptr)
             {
                 return;
@@ -126,38 +224,37 @@ namespace dirb
             {
                 url = '/' + url;
             }
-            // TODO: implement all methods, i.e. HEAD, POST, OPTIONS ...
-            if (httplib::Result res = cli.Get(url.c_str()))
+            if (httplib::Result res = send_request(cli, url))
             {
                 std::stringstream ss;
-                ss << res->status << ';'
+                auto const &response = *res;
+                ss << response.status << ';'
                    << '"' << url << '"' << ';'
-                   << '"' << (res->has_header("Content-Type") ? res->get_header_value("Content-Type") : "") << '"' << ';'
-                   << (res->has_header("Content-Length") ? res->get_header_value("Content-Length") : 0) << ';'
-                   << '"' << (res->has_header("Set-Cookie") ? res->get_header_value("Set-Cookie") : "") << '"' << ';';
-                if (300 <= res->status && res->status < 400)
+                   << '"' << safe_header_value(response, "Content-Type") << '"' << ';'
+                   << safe_header_value(response, "Content-Length") << ';'
+                   << '"' << safe_header_value(response, "Set-Cookie") << '"' << ';';
+                if (300 <= response.status && response.status < 400)
                 {
-                    if (res->has_header("Location"))
+                    if (response.has_header("Location"))
                     {
-                        ss << res->get_header_value("Location");
+                        ss << safe_header_value(response, "Location");
                     }
                 }
-                else if (res->status == 200)
+                else if (response.status == 200)
                 {
-                    std::lock_guard<std::mutex> lock(queue_mutex_);
                     for (auto const &v : probe_variations_)
                     {
-                        url_queue_.push(url + v);
+                        enqueue_url(url + v);
                     }
                     if (verify_certs_)
                     {
                         if (auto result = cli.get_openssl_verify_result())
                         {
-                            std::cout << "verify error: " << X509_verify_cert_error_string(result) << std::endl;
+                            log(std::string("verify error: ") + X509_verify_cert_error_string(result));
                         }
                     }
                 }
-                if (status_codes_.contains(res->status))
+                if (status_codes_.contains(response.status))
                 {
                     log(ss.str());
                 }
@@ -167,10 +264,7 @@ namespace dirb
                 std::stringstream ss;
                 ss << (-1) << ';' << '"' << url << '"' << ';' << ';' << ';' << ';' << res.error();
                 error(ss.str());
-                {
-                    std::lock_guard<std::mutex> lock(queue_mutex_);
-                    url_queue_.push(url);
-                }
+                enqueue_url(url);
             }
         }
         return;

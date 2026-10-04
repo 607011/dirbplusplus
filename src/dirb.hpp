@@ -1,16 +1,18 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
- * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
+ * Copyright (c) 2023-2026 Oliver Lau <oliver@ersatzworld.net>
  */
 
 #ifndef __DIRB_HPP__
 #define __DIRB_HPP__
 
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <string>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
@@ -95,11 +97,30 @@ namespace dirb
         }
         inline void set_url_queue(std::queue<std::string> const &url_queue)
         {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
             this->url_queue_ = url_queue;
+            this->seen_urls_.clear();
+            auto queue_copy = this->url_queue_;
+            while (!queue_copy.empty())
+            {
+                this->seen_urls_.insert(queue_copy.front());
+                queue_copy.pop();
+            }
+        }
+        inline bool enqueue_url(std::string const &url)
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            if (seen_urls_.contains(url))
+            {
+                return false;
+            }
+            seen_urls_.insert(url);
+            url_queue_.emplace(url);
+            return true;
         }
         inline void add_to_queue(std::string const &url)
         {
-            url_queue_.emplace(url);
+            enqueue_url(url);
         }
         inline size_t url_queue_size() const
         {
@@ -111,13 +132,15 @@ namespace dirb
         }
 
         void http_worker();
+        void logger_worker();
+        void stop_logger();
+        httplib::Result send_request(httplib::Client &cli, std::string const &url) const;
 
         static const std::string DefaultUserAgent;
         static const std::unordered_map<int, bool> DefaultStatusCodeFilter;
 
     private:
         std::string base_url_{};
-        std::mutex output_mutex_;
         bool follow_redirects_{false};
         httplib::Headers headers_{};
         std::string bearer_token_{};
@@ -128,10 +151,16 @@ namespace dirb
         bool verify_certs_{false};
         http::verb method_{http::verb::get};
         std::queue<std::string> url_queue_;
+        std::unordered_set<std::string> seen_urls_;
         std::mutex queue_mutex_;
+        std::queue<std::string> log_queue_;
+        std::mutex log_queue_mutex_;
+        std::condition_variable log_cv_;
         std::atomic_bool do_quit_{false};
+        std::atomic_bool logger_stop_{false};
         std::unordered_map<int, bool> status_codes_{DefaultStatusCodeFilter};
 
+        void enqueue_log_message(std::string const &message, bool is_error);
         void log(std::string const &message);
         void error(std::string const &message);
     };

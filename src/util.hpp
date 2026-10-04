@@ -1,6 +1,6 @@
 /*
  * Dirb++ - Fast, multithreaded version of the original Dirb
- * Copyright (c) 2023 Oliver Lau <oliver.lau@gmail.com>
+ * Copyright (c) 2023-2026 Oliver Lau <oliver@ersatzworld.net>
  */
 
 #ifndef __UTIL_CPP__
